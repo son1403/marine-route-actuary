@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import csv
 import unicodedata
+from pathlib import Path
 from typing import Callable, Iterable, List, Mapping, MutableSequence, Optional, Tuple, Union
 
 import pandas as pd
@@ -79,6 +81,96 @@ def make_nominatim_resolver(
         if location is None:
             return None
         return (float(location.longitude), float(location.latitude))
+
+    return _resolve
+
+
+def _load_place_cache(path: Path) -> dict[str, LonLat]:
+    if not path.exists():
+        return {}
+
+    cache: dict[str, LonLat] = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            if not row:
+                continue
+            norm = row.get("place_norm")
+            lon = row.get("lon")
+            lat = row.get("lat")
+            if not norm or lon is None or lat is None:
+                continue
+            try:
+                cache[norm] = (float(lon), float(lat))
+            except ValueError:
+                continue
+    return cache
+
+
+def _append_place_cache(
+    path: Path,
+    place_norm: str,
+    place_raw: str,
+    coord: LonLat,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    is_new = not path.exists()
+    with path.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["place_norm", "place_raw", "lon", "lat"],
+        )
+        if is_new:
+            writer.writeheader()
+        writer.writerow(
+            {
+                "place_norm": place_norm,
+                "place_raw": place_raw,
+                "lon": coord[0],
+                "lat": coord[1],
+            }
+        )
+
+
+def make_cached_resolver(
+    cache_path: Union[str, Path],
+    *,
+    base_resolver: Optional[PlaceResolver] = None,
+    normalizer: PlaceNormalizer = normalize_place_name,
+    user_agent: str = "marine-route-actuary",
+    timeout: int = 10,
+) -> PlaceResolver:
+    """Create a resolver that caches place lookups to a CSV file.
+
+    Parameters
+    ----------
+    cache_path:
+        CSV file path where resolved coordinates are stored.
+    base_resolver:
+        Resolver used when a place is not in the cache. If None, uses Nominatim.
+    normalizer:
+        Normalizes place names for cache keys.
+    """
+    path = Path(cache_path)
+    cache = _load_place_cache(path)
+
+    if base_resolver is None:
+        base_resolver = make_nominatim_resolver(user_agent=user_agent, timeout=timeout)
+
+    def _resolve(value: object) -> Optional[LonLat]:
+        if value is None:
+            return None
+        raw = str(value)
+        norm = normalizer(value)
+        if norm in cache:
+            return cache[norm]
+        coord = base_resolver(value)
+        if coord is None:
+            return None
+        coord = (float(coord[0]), float(coord[1]))
+        cache[norm] = coord
+        _append_place_cache(path, norm, raw, coord)
+        return coord
 
     return _resolve
 

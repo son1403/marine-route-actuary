@@ -95,6 +95,31 @@ out = flag_high_risk_routes(
 print(out[["FROM", "TO", "high_risk"]])
 ```
 
+## Quick Start (geocoding + cache)
+
+If you want automatic conversion but avoid repeated API calls, use the cached resolver.
+The first run calls the geocoder and writes to a CSV cache; later runs reuse it.
+
+```python
+import pandas as pd
+from shapely.geometry import box
+from marine_route_actuary import flag_high_risk_routes, make_cached_resolver
+
+df = pd.DataFrame([{"FROM": "Nottingham", "TO": "Viet Nam"}])
+hormuz_bbox = box(55.5, 25.5, 57.5, 27.5)
+
+resolver = make_cached_resolver("places_cache.csv")
+
+out = flag_high_risk_routes(
+    df,
+    place_resolver=resolver,
+    route_engine="scgraph",
+    high_risk_areas=[hormuz_bbox],
+)
+
+print(out[["FROM", "TO", "high_risk"]])
+```
+
 ## Inputs and Outputs
 
 **Inputs**
