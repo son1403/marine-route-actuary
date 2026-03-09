@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marine-route-actuary"
+version = "0.1.0"
+description = "Flag shipping routes that intersect high risk areas."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pandas>=1.5",
+  "scgraph>=2.15.0",
+  "shapely>=2.0",
+]
+
+[project.optional-dependencies]
+searoute = ["searoute>=1.4.3"]
+geocoding = ["geopy>=2.4"]
+
+[project.urls]
+Homepage = "https://example.com"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-q"
+testpaths = ["tests"]
